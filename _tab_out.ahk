@@ -177,7 +177,7 @@ class tabOut extends GuiBase {
             FileEncoding(encoding)
             if removed | ignored {
                 log("INFO(" . PROGRAM_TITLE . "): " . asmfile
-                    . "`r`n    ingored " . ignored . " and removed " . removed . " line(s)")
+                    . "`r`n    ignored " . ignored . " and removed " . removed . " line(s)")
             }
         }
 
