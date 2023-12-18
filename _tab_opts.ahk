@@ -8,6 +8,7 @@ _OPTS_SHOW_COMMANDS := 1
 _OPTS_WSL := 0
 _OPTS_BASE64_LINELEN := 80
 _OPTS_MCODE_META := 1
+_OPTS_FN_HDRS := 0
 
 class tabOpts extends GuiBase {
 
@@ -18,7 +19,7 @@ class tabOpts extends GuiBase {
     preInit() {
         AppendConfig([ "_OPTS_IGNOREWARNINGS", "_OPTS_KEEPJUNK", "_OPTS_NOPEMPTYCALLS", 
             "_OPTS_MERGE_RDATA", "_OPTS_SHOW_COMMANDS", "_OPTS_WSL", "_OPTS_BASE64_LINELEN",
-            "_OPTS_MCODE_META"])
+            "_OPTS_MCODE_META", "_OPTS_FN_HDRS"])
     }
 
     start() {
@@ -66,7 +67,7 @@ class tabOpts extends GuiBase {
             . "Select this option to do so silently, without being prompted.",
 		)
 		this.addCheckbox(
-			"Merge .rdata into .text",
+			"Merge .rdata/.data/.text",
 			"_OPTS_MERGE_RDATA",
 			"Optimization /O3 (on a suitable platform specified by -march) will heavily vectorize "
             . "the code.`r`n`r`n"
@@ -91,6 +92,14 @@ class tabOpts extends GuiBase {
 			"_OPTS_MCODE_META",
 			"Include meta-info in the generated output, such as the name of the source file, the "
             . "compiler version, compiler flags, etc.",
+		)
+        this.addCheckbox(
+			"Function headers",
+			"_OPTS_FN_HDRS",
+			"Also extract function header information from the C source file and include with the "
+            . "information above. Only has effect if 'meta-info in comments' is enabled.`r`n`r`n"
+            . "Note that while GCC is able to produce this information, for CLANG we use a homebrew regex "
+            . "parser that is not guaranteed to produce correct results in all cases. Parsing C is hard.",
 		)
         this.addEditBox(
             "base64 line length",

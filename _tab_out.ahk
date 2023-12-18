@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0+
-
+#include "_get_c_function_header.ahk"
 
 class tabOut extends GuiBase {
 
@@ -90,6 +90,8 @@ class tabOut extends GuiBase {
         srcfile := source_name
         ; linker output
         objfile := source_name . ".o"
+        ; c function names
+        auxfile := source_name . ".aux.txt"
         ; the listing that we're after
         lstfile := source_name . ".lst.txt"
         ; stderr gets redirected here
@@ -99,11 +101,20 @@ class tabOut extends GuiBase {
         ; remove any previously genrated  files if they're still around
         removeWorkFiles()
         ; final command line
-        fmts := (CL_USED & CL_WSL) ? 
-            '{} /c "wsl.exe "{}" "{}" {} "{}" 2> "{}""' :
-            '{} /c ""{}" "{}" {} "{}" 2> "{}""'
-        cl := Format(fmts, 
-            A_ComSpec, CL_LOC, srcfile, clopts . " -S -c -o", asmfile, errfile)
+        fmts := CL_USED & CL_WSL ?  (
+                                        (CL_USED & CL_GCC) ? 
+                                            '{} /c "wsl.exe "{}" "{}" {} "{}" -aux-info "{}" 2> "{}""'
+                                            :
+                                            '{} /c "wsl.exe "{}" "{}" {} "{}" 2> "{}""'
+                                    ) : (
+                                        (CL_USED & CL_GCC) ?
+                                            '{} /c ""{}" "{}" {} "{}" -aux-info "{}" 2> "{}""'
+                                            :
+                                            '{} /c ""{}" "{}" {} "{}" 2> "{}""'
+                                    )
+        cl := CL_USED & CL_GCC ?
+            Format(fmts, A_ComSpec, CL_LOC, srcfile, clopts . " -S -c -o", asmfile, auxfile, errfile) :
+            Format(fmts, A_ComSpec, CL_LOC, srcfile, clopts . " -S -c -o", asmfile, errfile)
         ; log all this stuff
         if _OPTS_SHOW_COMMANDS {
             log("Working Directory: ")
@@ -153,7 +164,8 @@ class tabOut extends GuiBase {
                 if RegExMatch(A_LoopField, "Ami)\s+call(l|q){0,1}\s+(___chkstk_ms|__stack_chk_fail)\b") {
                     remove :=  _OPTS_NOPEMPTYCALLS
                     ignore := !_OPTS_NOPEMPTYCALLS
-                } else if RegExMatch(A_LoopField, "Ami)\s+\.section\s+\.(rdata|rodata|note)\b") {
+                } else if RegExMatch(A_LoopField, "Ami)\s+\.section\s+\.(rdata|rodata|note)\b") ||
+                          RegExMatch(A_LoopField, "Ami)\s+\.data\b") {
                     remove :=  _OPTS_MERGE_RDATA
                     ignore := !_OPTS_MERGE_RDATA
                 }
@@ -186,7 +198,8 @@ class tabOut extends GuiBase {
         fmts := (AS_USED & AS_WSL) ? 
             '{} /c "wsl.exe "{}" -aln="{}" {} -o "{}" "{}" 2> "{}""' :
             '{} /c ""{}" -aln="{}" {} -o "{}" "{}" 2> "{}""'
-        gas := Format(fmts, A_ComSpec, AS_LOC, lstfile, asopts . " --listing-lhs-width=8", objfile, asmfile, errfile)
+        ; the 16 width makes the listing not very human-readable but it allows for space for a full .align 64
+        gas := Format(fmts, A_ComSpec, AS_LOC, lstfile, asopts . " --listing-lhs-width=16", objfile, asmfile, errfile)
         if _OPTS_SHOW_COMMANDS {
             log("Executing: ")
             log(gas)
@@ -265,7 +278,7 @@ class tabOut extends GuiBase {
                     ; remove the ":" from the end of the label (it's guaranteed to be there)
                     label := SubStr(match["label"], 1, InStr(match["label"], ":") - 1)
                     xoffset := format("0x{:06x}", current_offset)
-                    exported_labels.push([xoffset, label])
+                    exported_labels.push({offset: xoffset, label: label})
                     log("INFO(" . PROGRAM_TITLE . "): " . lstfile 
                         . "`r`n    exported label at " . xoffset . ": " . label)
                     
@@ -276,6 +289,7 @@ class tabOut extends GuiBase {
         bloblen := blobptr - blob.ptr
         b64b := b64encode(blob.ptr, bloblen)
         formatted := ""
+        padding := "                                      "
         if (_OPTS_MCODE_META) {
             formatted := formatted . ". `"`" `; " . source_name . '`n'
             formatted := formatted . ". `"`" `; " . bloblen . ' bytes`n'
@@ -283,12 +297,23 @@ class tabOut extends GuiBase {
             formatted := formatted . ". `"`" `; flags: " . clopts . '`n'
             formatted := formatted . ". `"`" `; " . AS_IDENT . '`n'
             formatted := formatted . ". `"`" `; flags: " . asopts . '`n'
-            for label in exported_labels
-                formatted := formatted . ". `"`" `; " . label[1] . ": " . label[2] . '`n'
         }
         while StrLen(b64b) > 0 {
             formatted := formatted . '. "' . SubStr(b64b, 1, _OPTS_BASE64_LINELEN) . '"`n'
             b64b := SubStr(b64b, _OPTS_BASE64_LINELEN + 1)
+        }
+        if (_OPTS_MCODE_META) {
+            longest_label := 0
+            for label in exported_labels
+                longest_label := max(longest_label, strlen(label.label))
+            for label in exported_labels {
+                line := ". `"`" `; " . label.offset . ": " . label.label
+                if (_OPTS_FN_HDRS) {
+                    line := line . substr(padding, 1, longest_label - strlen(label.label))
+                    line := line . ": " . get_c_function_header(label.label, workingdir . "\" . srcfile, workingdir . "\" . auxfile)
+                }
+                formatted := formatted . line . '`n'
+            }
         }
         this.out(formatted)
 
@@ -352,6 +377,8 @@ class tabOut extends GuiBase {
                 FileDelete(workingdir . "\" . errfile)
             if  FileExist( workingdir . "\" . asmfile)
                 FileDelete(workingdir . "\" . asmfile)
+            if  FileExist( workingdir . "\" . auxfile)
+                FileDelete(workingdir . "\" . auxfile)
         }
 
         log(txt := "") {

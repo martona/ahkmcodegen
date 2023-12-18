@@ -5,7 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "AutoHotkey v2 Debug",
+            "name": "AutoHotkey v2 - Run Current File",
+            "type": "autohotkey",
+            "request": "launch",
+            "program": "${file}",
+            "args": [
+                "-f",
+                "${file}"
+            ]
+        },
+        {
+            "name": "AutoHotkey v2 Debug ahkmcodegen.ahk",
             "type": "autohotkey",
             "request": "launch",
             "program": "${workspaceFolder}\\ahkmcodegen.ahk",

@@ -164,8 +164,8 @@ class tabMain extends GuiBase {
             glbToolLoc:     "CL_LOC",
             glbToolUse:     "CL_USED",
             glbToolIdnt:    "CL_IDENT",
-            useIdents:      [   {regex: "\bGCC\b",      ident: "CL_GCC"}, 
-                                {regex: "\bclang\b",    ident: "CL_CLANG"}
+            useIdents:      [   {regex: "i)\bGCC\b",      ident: "CL_GCC"}, 
+                                {regex: "i)\bclang\b",    ident: "CL_CLANG"}
                             ],
             wsl: "CL_WSL",
         }
@@ -243,7 +243,7 @@ class tabMain extends GuiBase {
         if cfg = _ACTIVE_CONFIGURATION && local_tool_loc = %obj.glbToolLoc% {
             if ver && ver[1] {
                 for i in obj.useIdents
-                    SetGlobal(obj.glbToolUse, %obj.glbToolUse% | (RegExMatch(ver[1], i.regex)) ? %i.ident% : 0)
+                    SetGlobal(obj.glbToolUse, %obj.glbToolUse% | ((RegExMatch(ver[1], i.regex)) ? %i.ident% : 0))
                 SetGlobal(obj.glbToolUse, %obj.glbToolUse% | (ver[2] ? %obj.wsl% : 0))
                 ver := ver[1]
             } else {
