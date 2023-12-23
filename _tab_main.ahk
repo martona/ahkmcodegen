@@ -4,18 +4,19 @@ CL_GCC   := 1
 CL_CLANG := 2
 CL_WSL   := 4
 CL_IDENT := ""
-AS_GAS         := 1
-AS_WSL         := 4
-AS_IDENT       := ""
+AS_GAS   := 1
+AS_WSL   := 4
+AS_IDENT := ""
 
 PROGRAM_SOURCE_FILE := ""
+AHK_SOURCE_FILE := ""
 CL_USED := 0
-CL_LOC := ""
-CL_FLG := "-march=native"
-CL_OPT := "-O2"
+CL_LOC  := ""
+CL_FLG  := "-march=native"
+CL_OPT  := "-O2"
 AS_USED := 0
-AS_LOC := ""
-AS_FLG := "-O2"
+AS_LOC  := ""
+AS_FLG  := "-O2"
 
 class tabMain extends GuiBase {
 
@@ -29,7 +30,8 @@ class tabMain extends GuiBase {
 
     preInit() {
         GuiBase.register(this)
-        AppendConfig([ "PROGRAM_SOURCE_FILE", "CL_USED", "AS_USED",
+        AppendConfig([ "PROGRAM_SOURCE_FILE", "AHK_SOURCE_FILE",
+            "CL_USED", "AS_USED",
             "CL_LOC", "CL_FLG", "CL_OPT",
             "AS_LOC", "AS_FLG", ])
     }
@@ -107,7 +109,19 @@ class tabMain extends GuiBase {
             this.refreshStatus,
 		)
         this.endGroupBox()
-        
+
+        this.startGroupBox("Existing AHK script for auto-insertion (optional)")
+        this.addFileSelection(
+			"",
+			"AHK_SOURCE_FILE",
+			"The AutoHotkey script specified here will receive an automatically-inserted mcode block.`r`n`r`n"
+            . "Note that this will only UPDATE an existing block that you've manually pasted in before, "
+            . "and metadata must be present as comments (see Options tab).`r`n`r`n"
+            . "Leave this blank to not use this feature.",
+            this.refreshStatus,
+		)
+        this.endGroupBox()
+
         this.startGroupBox("Compiler")
 		this.addFileSelection(
 			"Location",

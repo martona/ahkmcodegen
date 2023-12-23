@@ -2,15 +2,15 @@
 
 get_c_function_header(fname, file, auxinfo) {
     if (auxinfo && FileExist(auxinfo)) {
-       aux := FileRead(auxinfo)
-       aux := RegExReplace(aux, "/\*.*?\*/", "")
-       Loop Parse aux, "`n", "`r" {
-        s := A_LoopField
+        aux := FileRead(auxinfo)
+        aux := RegExReplace(aux, "/\*.*?\*/", "")
+        Loop Parse aux, "`n", "`r" {
+            s := A_LoopField
             s := RegExReplace(s, "^\s*extern\s*", "")
             if idx := RegExMatch(s, "^\s*[\w\*\s]*\s*\b" . fname . "\b\s*\(") {
                 return trim(s)
             }
-       }
+        }
     }
 
     ; if we didn't find it in the aux file, try to find it in the source file

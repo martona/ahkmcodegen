@@ -17,7 +17,7 @@ class tabOut extends GuiBase {
     start() {
 		this.guiAdd("Text", "section h0 w0")
         this.startGroupBox("Command output")
-        this.ctl_log := this.guiAdd("Edit", "-E0x200 section xs r6 w" . (this.columnWidthAll - 24) . " +multi +readonly")
+        this.ctl_log := this.guiAdd("Edit", "-E0x200 section xs r11 w" . (this.columnWidthAll - 24) . " +multi +readonly")
         this.endGroupBox()
         this.startGroupBox("mcode")
         this.ctl_out := this.guiAdd("Edit", "-E0x200 section xs r8 w" . (this.columnWidthAll - 24) . " +multi +readonly")
@@ -289,17 +289,19 @@ class tabOut extends GuiBase {
         bloblen := blobptr - blob.ptr
         b64b := b64encode(blob.ptr, bloblen)
         formatted := ""
-        padding := "                                      "
+        padding := "                                                                            "
+        marker  := "----------------------------------------------------------------------------"
+        meta_lines := []
         if (_OPTS_MCODE_META) {
-            formatted := formatted . ". `"`" `; " . source_name . '`n'
-            formatted := formatted . ". `"`" `; " . bloblen . ' bytes`n'
-            formatted := formatted . ". `"`" `; " . CL_IDENT . '`n'
-            formatted := formatted . ". `"`" `; flags: " . clopts . '`n'
-            formatted := formatted . ". `"`" `; " . AS_IDENT . '`n'
-            formatted := formatted . ". `"`" `; flags: " . asopts . '`n'
+            metaline("    . `"`" `; " . source_name)
+            metaline("    . `"`" `; " . bloblen . ' bytes')
+            metaline("    . `"`" `; " . CL_IDENT)
+            metaline("    . `"`" `; flags: " . clopts)
+            metaline("    . `"`" `; " . AS_IDENT)
+            metaline("    . `"`" `; flags: " . asopts)
         }
         while StrLen(b64b) > 0 {
-            formatted := formatted . '. "' . SubStr(b64b, 1, _OPTS_BASE64_LINELEN) . '"`n'
+            formatted := formatted . '    . "' . SubStr(b64b, 1, _OPTS_BASE64_LINELEN) . '"`n'
             b64b := SubStr(b64b, _OPTS_BASE64_LINELEN + 1)
         }
         if (_OPTS_MCODE_META) {
@@ -307,19 +309,96 @@ class tabOut extends GuiBase {
             for label in exported_labels
                 longest_label := max(longest_label, strlen(label.label))
             for label in exported_labels {
-                line := ". `"`" `; " . label.offset . ": " . label.label
+                line := "    mcode_" . label.label . substr(padding, 1, longest_label - strlen(label.label))
+                line := line . " := " . label.offset 
                 if (_OPTS_FN_HDRS) {
-                    line := line . substr(padding, 1, longest_label - strlen(label.label))
-                    line := line . ": " . get_c_function_header(label.label, workingdir . "\" . srcfile, workingdir . "\" . auxfile)
+                    header := get_c_function_header(label.label, workingdir . "\" . srcfile, workingdir . "\" . auxfile)
+                    if (RegExMatch(header, "\s*^static\s+"))
+                        continue
+                    line := line . " `; " . header
                 }
                 formatted := formatted . line . '`n'
+            }
+            msg := "end of ahkmcodegen auto-generated section"
+            lenmsg := strlen(msg)
+            lenmarker_l := (strlen(marker) - lenmsg) // 2
+            lenmarker_r := (strlen(marker) - lenmsg) - lenmarker_l
+            metaline("    `;" . substr(marker, 1, lenmarker_l) . " " . msg . " " . substr(marker, 1, lenmarker_r))
+            metaline(s) {
+                meta_lines.push(Trim(s))
+                formatted := formatted . s . '`n'
             }
         }
         this.out(formatted)
 
-        GuiBase.status("Done. Code bytes: " 
-            . bloblen . " (0x" . format("{:x}", bloblen)
-            . "), text: " . strlen(formatted) . " characters")
+        insertcnt := 0
+        if (_OPTS_MCODE_META && AHK_SOURCE_FILE && FileExist(AHK_SOURCE_FILE) && meta_lines.length = 7) {
+            ahk := FileRead(AHK_SOURCE_FILE)
+            ahk_new := ""
+            ahk_alt := ""
+            meta_matching := 1
+            Loop Parse ahk, "`n", "`r" {
+                s1 := Trim(A_LoopField)
+                s2 := meta_lines[meta_matching]
+                m  := s1 = s2
+                if (meta_matching = 1) {
+                    ; check for the first line matching, e.g. '    . "" ; program.c' 
+                    if m {
+                        ahk_alt := A_LoopField . '`n'
+                        meta_matching++
+                    } else {
+                        ahk_new := ahk_new . A_LoopField . '`n'
+                    }
+                } else if meta_matching = 2 {
+                    ; line 2 is is the one we're not checking for a match, it's the
+                    ; size of the binary blob and can change from build to build                
+                    meta_matching++
+                    ; save whatever's here in case the block is not a match
+                    ahk_alt := ahk_alt . A_LoopField . '`n'
+                } else if meta_matching = 7 {
+                    if m {
+                        ; line 7 is the end of the block so if it's a match we're good:
+                        ; add the formatted blob to the output.
+                        ahk_new := ahk_new . formatted
+                        ; reset the search (there might be multiple copies of the blob???)
+                        meta_matching := 1
+                        insertcnt++
+                    } else {
+                        ; otherwise we're skipping base64-encoded stuff so just advance,
+                        ; but accumulate whatever we're skipping in case we never find a type 7 match
+                        ahk_alt := ahk_alt . A_LoopField . '`n'
+                    }
+                } else {
+                    ; we're on lines 3-6, these need to match, otherwise we reset the search
+                    if m {
+                        ahk_alt := ahk_alt . A_LoopField . '`n'
+                        meta_matching++
+                    } else {
+                        ahk_new := ahk_new . ahk_alt . A_LoopField . '`n'
+                        ahk_alt := ""
+                        meta_matching := 1
+                    }
+                }
+            }
+            if (meta_matching != 1) {
+                ; we didn't find a full match, so we're appending the alternate stream
+                ; to the end of the file
+                ahk_new := ahk_new . ahk_alt
+            }
+            ; juggle the files about a bit by writing to a temporary file
+            DllCall("QueryPerformanceCounter", "int64*", &t := 0)
+            t := Format("{:016x}", t)
+            tmpname := AHK_SOURCE_FILE . ". " . t . ".tmp"
+            If FileExist(tmpname)
+                FileDelete(tmpname)
+            FileAppend(ahk_new, tmpname)
+            FileMove(tmpname, AHK_SOURCE_FILE, 1)
+        }
+
+        status := "Done. Code bytes: " . bloblen . "."
+        if insertcnt
+            status := status . " Inserted into .ahk source " . insertcnt . " time(s)."
+        GuiBase.status(status)
         theGui.setCurrentTab(theGui.tabs, 1)
         return
 
