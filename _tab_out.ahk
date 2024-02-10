@@ -385,14 +385,10 @@ class tabOut extends GuiBase {
                 ; to the end of the file
                 ahk_new := ahk_new . ahk_alt
             }
-            ; juggle the files about a bit by writing to a temporary file
-            DllCall("QueryPerformanceCounter", "int64*", &t := 0)
-            t := Format("{:016x}", t)
-            tmpname := AHK_SOURCE_FILE . ". " . t . ".tmp"
-            If FileExist(tmpname)
-                FileDelete(tmpname)
-            FileAppend(ahk_new, tmpname)
-            FileMove(tmpname, AHK_SOURCE_FILE, 1)
+            ; write out the results
+            fileobj := FileOpen(AHK_SOURCE_FILE, "w")
+            fileobj.Write(ahk_new)
+            fileobj.Close()
         }
 
         status := "Done. Code bytes: " . bloblen . "."
